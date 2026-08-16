@@ -1,5 +1,5 @@
 # Build stage
-FROM node:20 AS builder
+FROM node:20.17.0 AS builder
 
 # better-sqlite3 must compile from source, so we need build tools and curl for the sqlite3 download
 RUN apt-get update && \
@@ -19,7 +19,7 @@ ENV NEXT_PHASE=phase-production-build
 RUN npm run build
 
 # Runtime stage
-FROM node:20-slim AS runner
+FROM node:20.17.0-slim AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
