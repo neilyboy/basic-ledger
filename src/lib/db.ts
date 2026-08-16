@@ -231,7 +231,8 @@ export function getCategoryBreakdown() {
 export function verifyPin(pin: string) {
   const settings = getSettings();
   const adminPin = settings.admin_pin as string;
-  return adminPin ? bcrypt.compareSync(pin, adminPin) : pin === ADMIN_PIN;
+  if (adminPin && bcrypt.compareSync(pin, adminPin)) return true;
+  return pin === ADMIN_PIN;
 }
 
 export function updateSettings(values: { company_name: string; reply_to: string; currency: string; ocr_enabled: number }) {
