@@ -1,13 +1,17 @@
 # Build stage
 FROM node:20 AS builder
 
-# better-sqlite3 must compile from source against this exact Node version
-RUN apt-get update && apt-get install -y python3 make g++ && rm -rf /var/lib/apt/lists/*
+# better-sqlite3 must compile from source, so we need build tools and curl for the sqlite3 download
+RUN apt-get update && \
+    apt-get install -y python3 make g++ bash curl ca-certificates && \
+    rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 COPY package*.json ./
 RUN npm ci
-RUN npm rebuild better-sqlite3 --build-from-source
+
+# Force better-sqlite3 to compile for this exact Node version
+RUN (cd /app/node_modules/better-sqlite3 && npm run download && npm run build-release)
 
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
