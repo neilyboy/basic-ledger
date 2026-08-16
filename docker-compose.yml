@@ -1,0 +1,21 @@
+services:
+  basic-ledger:
+    build: .
+    container_name: basic-ledger
+    ports:
+      - "3000:3000"
+    environment:
+      - ADMIN_PIN=${ADMIN_PIN:-1234}
+      - APP_NAME=${APP_NAME:-Basic Ledger}
+      - COMPANY_NAME=${COMPANY_NAME:-}
+      - REPLY_TO=${REPLY_TO:-}
+      - SMTP_HOST=${SMTP_HOST:-}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USER=${SMTP_USER:-}
+      - SMTP_PASS=${SMTP_PASS:-}
+      - DB_PATH=/app/data/ledger.db
+      - UPLOADS_DIR=/app/uploads
+    volumes:
+      - ./data:/app/data
+      - ./uploads:/app/uploads
+    restart: unless-stopped
