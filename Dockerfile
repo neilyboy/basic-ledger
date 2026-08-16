@@ -30,6 +30,10 @@ COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/package.json ./
+# Overwrite the native binary that Next standalone tracing may have copied
+# from a stale prebuild (ABI 108) with the one we compiled for this Node (ABI 115).
+COPY --from=builder /app/node_modules/better-sqlite3/build/Release/better_sqlite3.node ./node_modules/better-sqlite3/build/Release/better_sqlite3.node
+
 
 EXPOSE 3000
 CMD ["node", "server.js"]
