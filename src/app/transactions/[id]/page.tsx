@@ -161,10 +161,10 @@ export default function TransactionDetail() {
       } else {
         // No SMTP: open mailto with BCC, and download the files for manual attachment
         const chosen = recipients.filter(r => selectedRecipients.includes(r.id));
-        const bcc = chosen.map(r => r.email).join(',');
+        const to = chosen.map(r => r.email).join(',');
         const subject = `Expense Receipt - ${tx.category_name} - ${tx.date}`;
         const body = `Vendor: ${tx.vendor}\nAmount: $${tx.amount.toFixed(2)}\nDate: ${tx.date}\nNotes: ${tx.notes || '-'}\n\n(Attach the downloaded PDF and receipt image.)`;
-        const mailto = `mailto:?bcc=${encodeURIComponent(bcc)}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+        const mailto = `mailto:${to}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
         const { imgFile, pdfFile } = await fetchFiles();
         triggerBrowserDownload(pdfFile);
         setTimeout(() => triggerBrowserDownload(imgFile), 800);
