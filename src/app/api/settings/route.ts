@@ -6,7 +6,8 @@ export const dynamic = 'force-dynamic';
 export async function GET() {
   const settings = getSettings();
   delete settings.admin_pin;
-  return NextResponse.json(settings);
+  const smtpEnabled = !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
+  return NextResponse.json({ ...settings, smtp_enabled: smtpEnabled ? 1 : 0 });
 }
 
 export async function PUT(request: Request) {

@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
-import { Camera, Image as ImageIcon, ArrowLeft, Loader2, Save } from 'lucide-react';
+import Tesseract from 'tesseract.js';
+import { Camera, Image as ImageIcon, ArrowLeft, Loader2, Save, Scan } from 'lucide-react';
 import { toISODate } from '@/lib/utils';
 
 type Category = {
@@ -25,6 +26,10 @@ export default function NewExpense() {
   const [vendor, setVendor] = useState('');
   const [notes, setNotes] = useState('');
   const [odometer, setOdometer] = useState('');
+  const [ocrEnabled, setOcrEnabled] = useState(false);
+  const [ocrText, setOcrText] = useState('');
+  const [ocrRunning, setOcrRunning] = useState(false);
+  const [ocrError, setOcrError] = useState('');
   const galleryRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
 
@@ -32,6 +37,9 @@ export default function NewExpense() {
     fetch('/api/categories?active=1')
       .then(r => r.json())
       .then(setCategories);
+    fetch('/api/settings')
+      .then(r => r.json())
+      .then(s => setOcrEnabled(!!s.ocr_enabled));
   }, []);
 
   const selectedCat = categories.find(c => c.id === Number(selectedCategory));
@@ -39,13 +47,32 @@ export default function NewExpense() {
   async function handleFile(file: File) {
     const objectUrl = URL.createObjectURL(file);
     setPreview(objectUrl);
+    setOcrText('');
+    setOcrError('');
     setUploading(true);
     const fd = new FormData();
     fd.append('file', file);
     const res = await fetch('/api/upload', { method: 'POST', body: fd });
     const data = await res.json();
     setUploading(false);
-    if (data.path) setReceipt(data.path);
+    if (data.path) {
+      setReceipt(data.path);
+      if (ocrEnabled) {
+        runOcr(file);
+      }
+    }
+  }
+
+  async function runOcr(file: File) {
+    setOcrRunning(true);
+    try {
+      const result = await Tesseract.recognize(file, 'eng');
+      setOcrText(result.data.text);
+    } catch (e) {
+      console.error(e);
+      setOcrError('OCR failed. You can still type the details below.');
+    }
+    setOcrRunning(false);
   }
 
   async function submit() {
@@ -95,8 +122,24 @@ export default function NewExpense() {
           <div className="relative w-full h-64 rounded-xl overflow-hidden bg-card border border-muted">
             <Image src={preview} alt="Receipt preview" fill className="object-contain" />
           </div>
-          <button onClick={() => { setPreview(null); setReceipt(null); }} className="text-sm text-primary mt-2 underline">Retake / reselect</button>
+          <button onClick={() => { setPreview(null); setReceipt(null); setOcrText(''); }} className="text-sm text-primary mt-2 underline">Retake / reselect</button>
           {uploading && <p className="text-sm text-gray-400 mt-2">Uploading...</p>}
+        </div>
+      )}
+
+      {ocrEnabled && preview && (
+        <div className="bg-card p-4 rounded-2xl border border-muted mb-6">
+          <div className="flex items-center gap-2 mb-2">
+            <Scan size={18} className="text-primary" />
+            <h3 className="font-semibold">OCR Reference (do not auto-fill)</h3>
+          </div>
+          {ocrRunning ? (
+            <p className="text-sm text-gray-400">Scanning receipt...</p>
+          ) : ocrError ? (
+            <p className="text-sm text-red-400">{ocrError}</p>
+          ) : (
+            <textarea readOnly value={ocrText} className="w-full p-3 rounded-xl bg-muted text-foreground text-sm" rows={4} />
+          )}
         </div>
       )}
 

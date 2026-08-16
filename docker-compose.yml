@@ -3,7 +3,7 @@ services:
     build: .
     container_name: basic-ledger
     ports:
-      - "3000:3000"
+      - "3876:3000"
     environment:
       - ADMIN_PIN=${ADMIN_PIN:-1234}
       - APP_NAME=${APP_NAME:-Basic Ledger}

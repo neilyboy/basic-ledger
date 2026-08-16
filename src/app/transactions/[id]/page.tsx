@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Image from 'next/image';
-import { ArrowLeft, Download, Share, Trash2, FileText, Loader2 } from 'lucide-react';
+import { ArrowLeft, Download, Mail, Share, Trash2, FileText, Loader2 } from 'lucide-react';
 import { formatCurrency, formatDate } from '@/lib/utils';
 
 type Transaction = {
@@ -18,16 +18,33 @@ type Transaction = {
   pdf_file: string;
 };
 
+type Recipient = {
+  id: number;
+  name: string;
+  email: string;
+  group: string;
+};
+
 export default function TransactionDetail() {
   const { id } = useParams();
   const router = useRouter();
   const [tx, setTx] = useState<Transaction | null>(null);
   const [sharing, setSharing] = useState(false);
+  const [recipients, setRecipients] = useState<Recipient[]>([]);
+  const [selectedRecipients, setSelectedRecipients] = useState<number[]>([]);
+  const [smtpEnabled, setSmtpEnabled] = useState(false);
+  const [sending, setSending] = useState(false);
 
   useEffect(() => {
     fetch(`/api/transactions/${id}`)
       .then(r => r.json())
       .then(setTx);
+    fetch('/api/recipients')
+      .then(r => r.json())
+      .then(setRecipients);
+    fetch('/api/settings')
+      .then(r => r.json())
+      .then(s => setSmtpEnabled(!!s.smtp_enabled));
   }, [id]);
 
   async function shareFiles() {
@@ -65,6 +82,23 @@ export default function TransactionDetail() {
       alert('Unable to share. Try downloading the PDF instead.');
     }
     setSharing(false);
+  }
+
+  async function sendEmail() {
+    if (!tx || selectedRecipients.length === 0) return;
+    setSending(true);
+    const res = await fetch('/api/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ transactionId: tx.id, recipientIds: selectedRecipients }),
+    });
+    const data = await res.json();
+    setSending(false);
+    if (data.ok) {
+      alert('Email sent.');
+    } else {
+      alert(data.error || 'Failed to send email.');
+    }
   }
 
   async function deleteTx() {
@@ -110,18 +144,39 @@ export default function TransactionDetail() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-3 mb-4">
         <a href={`/api/transactions/${tx.id}/pdf`} target="_blank" className="flex items-center justify-center gap-2 py-3 rounded-xl bg-muted text-foreground font-semibold">
           <FileText size={18} /> View PDF
         </a>
         <a href={`/api/transactions/${tx.id}/pdf`} download className="flex items-center justify-center gap-2 py-3 rounded-xl bg-muted text-foreground font-semibold">
           <Download size={18} /> Download
         </a>
-        <button onClick={shareFiles} disabled={sharing} className="col-span-2 flex items-center justify-center gap-2 py-4 rounded-xl bg-primary text-primary-foreground font-bold active:scale-95 transition-transform disabled:opacity-50">
+      </div>
+
+      {smtpEnabled && (
+        <div className="bg-card p-4 rounded-2xl border border-muted mb-4">
+          <h3 className="font-semibold mb-2">Send via email server</h3>
+          <div className="flex flex-col gap-2 mb-3 max-h-40 overflow-y-auto">
+            {recipients.map(r => (
+              <label key={r.id} className="flex items-center gap-2 text-sm">
+                <input type="checkbox" checked={selectedRecipients.includes(r.id)} onChange={e => setSelectedRecipients(prev => e.target.checked ? [...prev, r.id] : prev.filter(id => id !== r.id))} className="w-4 h-4" />
+                {r.name} ({r.email})
+              </label>
+            ))}
+          </div>
+          <button onClick={sendEmail} disabled={selectedRecipients.length === 0 || sending} className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-bold flex items-center justify-center gap-2 disabled:opacity-50">
+            {sending ? <Loader2 className="animate-spin" /> : <Mail size={18} />}
+            Send Email
+          </button>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 gap-3">
+        <button onClick={shareFiles} disabled={sharing} className="flex items-center justify-center gap-2 py-4 rounded-xl bg-card text-foreground border border-muted font-semibold active:scale-95 transition-transform disabled:opacity-50">
           {sharing ? <Loader2 className="animate-spin" /> : <Share size={18} />}
           Share Receipt
         </button>
-        <button onClick={deleteTx} className="col-span-2 flex items-center justify-center gap-2 py-3 rounded-xl border border-red-500 text-red-400 font-semibold active:scale-95 transition-transform">
+        <button onClick={deleteTx} className="flex items-center justify-center gap-2 py-3 rounded-xl border border-red-500 text-red-400 font-semibold active:scale-95 transition-transform">
           <Trash2 size={18} /> Delete
         </button>
       </div>

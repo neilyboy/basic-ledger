@@ -3,12 +3,15 @@ import path from 'path';
 import fs from 'fs';
 import bcrypt from 'bcryptjs';
 
-const DB_PATH = process.env.DB_PATH || path.resolve(process.cwd(), 'data/ledger.db');
-export const UPLOADS_DIR = process.env.UPLOADS_DIR || path.resolve(process.cwd(), 'uploads');
+const isBuild = process.env.NEXT_PHASE === 'phase-production-build';
+const DB_PATH = isBuild ? ':memory:' : (process.env.DB_PATH || path.resolve(process.cwd(), 'data/ledger.db'));
+export const UPLOADS_DIR = isBuild ? path.resolve(process.cwd(), 'tmp/uploads') : (process.env.UPLOADS_DIR || path.resolve(process.cwd(), 'uploads'));
 const ADMIN_PIN = process.env.ADMIN_PIN || '1234';
 
-fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
-fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+if (!isBuild) {
+  fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
+  fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+}
 
 let db: Database.Database | null = null;
 
@@ -59,39 +62,28 @@ export function getDb(): Database.Database {
       updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (category_id) REFERENCES categories(id)
     );
-
-    CREATE TABLE IF NOT EXISTS migrations (
-      id INTEGER PRIMARY KEY CHECK (id = 1),
-      seeded INTEGER DEFAULT 0
-    );
   `);
 
   const seed = db.transaction(() => {
-    const migrations = db!.prepare('SELECT seeded FROM migrations WHERE id = 1').get() as { seeded: number } | undefined;
-    if (!migrations) {
-      db!.prepare('INSERT OR IGNORE INTO migrations (id, seeded) VALUES (1, 0)').run();
-    }
-
-    if (!migrations?.seeded) {
+    const settingsRow = db!.prepare('SELECT COUNT(*) as n FROM settings').get() as { n: number } | undefined;
+    if (!settingsRow || settingsRow.n === 0) {
       const hashed = bcrypt.hashSync(ADMIN_PIN, 10);
       db!.prepare(`
-        INSERT OR IGNORE INTO settings (company_name, reply_to, currency, admin_pin, app_name, ocr_enabled)
+        INSERT INTO settings (company_name, reply_to, currency, admin_pin, app_name, ocr_enabled)
         VALUES ('', '', 'USD', ?, 'Basic Ledger', 0)
       `).run(hashed);
-
-      const categories = [
-        { name: 'Fuel', requires_mileage: 1, sort_order: 10 },
-        { name: 'Vehicle Maintenance', requires_mileage: 0, sort_order: 20 },
-        { name: 'Tool Purchase', requires_mileage: 0, sort_order: 30 },
-        { name: 'Job Expense', requires_mileage: 0, sort_order: 40 },
-        { name: 'Office Supplies', requires_mileage: 0, sort_order: 50 },
-        { name: 'Travel', requires_mileage: 0, sort_order: 60 },
-      ];
-      const insertCat = db!.prepare('INSERT OR IGNORE INTO categories (name, requires_mileage, sort_order) VALUES (?, ?, ?)');
-      for (const c of categories) insertCat.run(c.name, c.requires_mileage, c.sort_order);
-
-      db!.prepare('UPDATE migrations SET seeded = 1 WHERE id = 1').run();
     }
+
+    const categories = [
+      { name: 'Fuel', requires_mileage: 1, sort_order: 10 },
+      { name: 'Vehicle Maintenance', requires_mileage: 0, sort_order: 20 },
+      { name: 'Tool Purchase', requires_mileage: 0, sort_order: 30 },
+      { name: 'Job Expense', requires_mileage: 0, sort_order: 40 },
+      { name: 'Office Supplies', requires_mileage: 0, sort_order: 50 },
+      { name: 'Travel', requires_mileage: 0, sort_order: 60 },
+    ];
+    const insertCat = db!.prepare('INSERT OR IGNORE INTO categories (name, requires_mileage, sort_order) VALUES (?, ?, ?)');
+    for (const c of categories) insertCat.run(c.name, c.requires_mileage, c.sort_order);
   });
 
   seed.exclusive();
@@ -238,7 +230,8 @@ export function getCategoryBreakdown() {
 
 export function verifyPin(pin: string) {
   const settings = getSettings();
-  return bcrypt.compareSync(pin, settings.admin_pin as string);
+  const adminPin = settings.admin_pin as string;
+  return adminPin ? bcrypt.compareSync(pin, adminPin) : pin === ADMIN_PIN;
 }
 
 export function updateSettings(values: { company_name: string; reply_to: string; currency: string; ocr_enabled: number }) {

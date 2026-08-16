@@ -17,6 +17,7 @@ export default function Admin() {
   const [newCat, setNewCat] = useState({ name: '', requires_mileage: false, sort_order: '' });
   const [newRec, setNewRec] = useState({ name: '', email: '', group: '' });
   const [newPin, setNewPin] = useState('');
+  const [pinError, setPinError] = useState('');
 
   useEffect(() => {
     if (!authed) return;
@@ -26,13 +27,18 @@ export default function Admin() {
   }, [authed]);
 
   async function verifyPin() {
+    setPinError('');
     const res = await fetch('/api/admin/verify', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ pin }),
     });
     const data = await res.json();
-    setAuthed(data.ok);
+    if (data.ok) {
+      setAuthed(true);
+    } else {
+      setPinError('Incorrect PIN');
+    }
   }
 
   async function saveSettings() {
@@ -104,7 +110,8 @@ export default function Admin() {
       <main className="min-h-screen p-6 bg-background flex flex-col items-center justify-center gap-4">
         <h1 className="text-2xl font-bold">Admin Access</h1>
         <p className="text-gray-400">Enter 4-digit PIN</p>
-        <input type="password" inputMode="numeric" maxLength={4} value={pin} onChange={e => setPin(e.target.value)} className="w-32 p-3 text-center text-2xl rounded-xl bg-muted text-foreground tracking-widest" />
+        <input type="password" inputMode="numeric" maxLength={4} value={pin} onChange={e => setPin(e.target.value)} onKeyDown={e => e.key === 'Enter' && verifyPin()} className="w-32 p-3 text-center text-2xl rounded-xl bg-muted text-foreground tracking-widest" />
+        {pinError && <p className="text-red-400 text-sm">{pinError}</p>}
         <button onClick={verifyPin} className="px-8 py-3 rounded-xl bg-primary text-primary-foreground font-bold">Unlock</button>
       </main>
     );
